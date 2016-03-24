@@ -1,15 +1,16 @@
 # lectl
 Author: sahsanu
+
 Description: Script to check issued certificates by Let's Encrypt on CTL (Certificate Transparency Log) using https://crt.sh
 
 
 
-##Usage:
-
+###Usage
+```
 lectl [-h|--help] [-v|--version] [-l|--extraline] [-s|--sans] [-e|--expired] [-u|--utc] domain
-
-Options:
-
+```
+**Options**
+```
 -h | --help      [Default: false] shows the help file.
 
 -v | --version   shows the script version.
@@ -27,13 +28,15 @@ Options:
 
 -u | --utc       [Default: false] shows the dates in UTC (GMT) instead of
                  your machine time zone.
+```
 
-Examples:
-
-    lectl letsencryt.org
-    lectl -s -e -u -l letsencryt.org
-    lectl -seul letsencryt.org
-    lectl -luse letsencryt.org
-    lectl -su --extraline letsencryt.org
-    lectl -u letsencryt.org -es
-    ...and so on
+**Examples**
+```
+lectl letsencryt.org
+lectl -s -e -u -l letsencryt.org
+lectl -seul letsencryt.org
+lectl -luse letsencryt.org
+lectl -su --extraline letsencryt.org
+lectl -u letsencryt.org -es
+...and so on
+```
