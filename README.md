@@ -1,11 +1,11 @@
 # lectl
-Author: sahsanu
 
-Description: Script to check issued certificates by Let's Encrypt on CTL (Certificate Transparency Log) using https://crt.sh
+**Description**
+Script to check issued certificates by Let's Encrypt on CTL (Certificate Transparency Log) using https://crt.sh
 
 
 
-###Usage
+**Usage**
 ```
 lectl [-h|--help] [-v|--version] [-l|--extraline] [-s|--sans] [-e|--expired] [-u|--utc] domain
 ```
