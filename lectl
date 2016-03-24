@@ -1,0 +1,321 @@
+#!/bin/bash
+# ---------------------------------------------------------------------------
+# lectl
+# Script to check issued certificates by Let's Encrypt in
+# CTL (Certificate Transparency Log) using https://crt.sh
+#
+# Note: crt.sh is property of COMODO CA Limited 2015-2016
+
+# DOWNLOAD lectl
+# You'll find last lectl version at https://github.com/sahsanu/lectl
+
+# LICENSE:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License at <http://www.gnu.org/licenses/> for
+# more details.
+
+# HELP:
+#U Usage:
+#U
+#U lectl [-h|--help] [-v|--version] [-l|--extraline] [-s|--sans] [-e|--expired] [-u|--utc] domain
+#U
+#H Options:
+#H
+#H -h | --help      [Default: false] shows the help file.
+#H
+#H -v | --version   shows the script version.
+#H
+#H -l | --extraline [Default: false] adds extra line separator between found
+#H                  certificates (when there are several certs with several
+#H                  sans adding this extra line it's easier to read the output).
+#H
+#H -s | --sans      [Default: false] shows all domains included in the
+#H                  certificate as SANs. If you don't use this option you will
+#H                  only see the Common Name.
+#H
+#H -e | --expired   [Default: false] shows all certs issued for the specified
+#H                  domain, including the certs that are already expired.
+#H
+#H -u | --utc       [Default: false] shows the dates in UTC (GMT) instead of
+#H                  your machine time zone.
+#H
+#H Examples:
+#H
+#H     lectl letsencryt.org
+#H     lectl -s -e -u -l letsencryt.org
+#H     lectl -seul letsencryt.org
+#H     lectl -luse letsencryt.org
+#H     lectl -su --extraline letsencryt.org
+#H     lectl -u letsencryt.org -es
+#H     ...and so on
+#H
+# CHANGELOG:
+# 2016-Feb-10: Created (v0.1)
+# 2016-Mar-24: Public release with many fixes(v0.2)
+#
+# TODO:
+# Clean up and comment the code
+
+# Script version/name variables
+version='0.2'
+scriptname='lectl'
+lastmodification='2016-March-24'
+
+_showversion() {
+    echo "${scriptname} $version (${lastmodification})"
+    printf '\n'
+}
+
+_showversion
+
+_checkcommands() {
+for i in $*;do
+    if ! command -v "$i" &>/dev/null ;then
+    echo "Command \"$i\" not found."
+    echo "Sorry, I can't continue, I need \"$i\" to run."
+    exit 1
+    fi
+done
+}
+
+_checkcommands 'curl awk grep sed cat date'
+
+utc=""
+domain=""
+extraline=""
+showsans="0"
+columnsans=""
+showexpired="1"
+expired='&exclude=expired'
+nonexpired="non expired "
+
+# Define message functions
+_echoerr()  { echo "Error: $@" >&2; }
+_echowarn() { echo "Warning: $@"; }
+_echoinf()  { echo "Info: $@"; }
+
+# Function to check error on previous command
+_checkerror() {
+    rc=$?
+    if [ "${rc}" -ne 0 ]; then
+        _echoerr "${1}"
+        _echoerr "Return code was: ${rc}"
+        printf '\n'
+        _housekeeping
+        exit ${rc}
+    fi
+}
+
+# No comment[s]
+_plural() {
+    if [ "$1" -eq "1" ] || [ "$1" -eq "-1" ];then
+        printf ''
+    else
+        printf 's'
+    fi
+}
+
+# Help and usage functions
+_showusage() {
+    usage=$(grep '^#U' "$0")
+    _checkerror "Ups, Where is my help?, Did you modified the comments of my script?"
+    sed 's/#U//' <<< "${usage}"
+}
+
+_showhelp() {
+    _showusage
+    help=$(grep '^#H' "$0")
+    _checkerror "Ups, Where is my help?, Did you modified the comments of my script?"
+    sed 's/#H//' <<< "${help}"
+}
+
+# Clean the house 
+_housekeeping() {
+    if [ -d "${tempdir}" ];then
+        rm -rf "${tempdir}"
+    fi
+}
+
+# Take care of signals
+_trap_exit() { # Handle trapped signals
+  case $1 in
+    INT)
+      _echoerr "${scriptname} has been interrupted by user"
+      _housekeeping
+      exit 100
+      ;;
+    TERM)
+      _echoerr "${scriptname} terminated"
+      _housekeeping
+      exit 101
+      ;;
+    *)
+      _echoerr "Terminating ${scriptname} on unknown signal"
+      _housekeeping
+      exit 102
+      ;;
+  esac
+}
+
+# Trap signals
+trap "_trap_exit INT" INT
+trap "_trap_exit TERM" TERM HUP
+
+
+# Parse options
+_parseoptions() {
+    if [ "$#" -gt "0" ];then
+        while [ -n "$1" ]; do
+            case $1 in
+                    -h | --help) _showhelp; exit ;;
+                     -u | --utc) utc="-u" ;;
+                      -s|--sans) showsans='1'; columnsans=';SANs' ;;
+                   -e|--expired) showexpired="0"; expired=''; nonexpired='' ;;
+                 -l|--extraline) extraline='\n' ;;
+                 -v | --version) exit ;;
+                       -* | --*) _echoerr "Unknown option $1"; _showusage; exit 1 ;;
+                              *) domain="${1}" ;;
+            esac
+            shift
+        done
+    else
+        _echoerr "You MUST specify a domain name."
+        printf '\n'
+        exit 1
+    fi
+    
+    if [ -z "${domain}" ];then
+        _echoerr "You MUST specify a domain name."
+        printf '\n'
+        exit 1
+    else
+        echo "${domain}" | grep -E '^[a-zA-Z0-9\.-]+\.[A-Za-z]{2,}$' &>/dev/null
+        _checkerror "Seems the specified domain ${domain} is not valid"
+    fi
+}
+
+while [ -n "$1" ];do
+    param=$(printf -- "$1" | tr '[:upper:]' '[:lower:]')
+    if grep -E '^-[a-z]{2,}' <<< $param &>/dev/null ;then
+        for i in $(printf -- "$param" | sed 's/-//' | grep -o .); do options="$options -$i";done
+        shift
+    else
+        options="$options $param"
+        shift
+    fi
+done
+
+_parseoptions $options
+
+
+# Define temp dir and tempifile
+tempdir=".${scriptname}.$$.tmp"
+if [ ! -d "${tempdir}" ];then
+    mkdir "${tempdir}"
+fi
+tempfile="${tempdir}/${domain}.$$.rl.tmp"
+
+# Define crt.sh urls
+crturldomain="https://crt.sh/?Identity=${domain}&iCAID=7395${expired}"
+crturlsubdomains="https://crt.sh/?Identity=%.${domain}&iCAID=7395${expired}"
+crturldomainid="https://crt.sh/?id="
+
+echo "$(LANG=C;date +"%Y/%B/%d %H:%M:%S") - Checking certs for ${domain}"
+echo " "
+
+# Get issued certificates for domain
+curl -sS "$crturldomain" > "${tempfile}" 2>/dev/null
+_checkerror "Failed to retrieve ${crturldomain}"
+
+# Get issued certificates for sub domains
+curl -sS "$crturlsubdomains" >> "${tempfile}" 2>/dev/null
+_checkerror "Failed to retrieve ${crturlsubdomains}"
+
+# Put certificates found in variable
+certsfound=$(grep '?id' "${tempfile}" | tr -d ' ')
+
+# Sorting output and removing duplicates so last cert is the first in the list
+certsfound=$(echo "$certsfound" | sed 's/^.*id=//' | sort -run | sed 's/^/<TD><Ahref="?id=/')
+
+# Count certificates
+numberofcerts=$(echo "${certsfound}" | grep '>CN=' | wc -l)
+
+if [ "${numberofcerts}" -le 0 ];then
+    _echoinf "I've not found any certificate for the domain ${domain}"
+    printf '\n'
+    exit 0
+fi
+
+for i in $(echo "${certsfound}");do
+    id=$(echo "$i" | awk -F'id=|>|"' '{print $4}')
+    domainid=$(echo "$i" | awk -F'CN=|>|<' '{print $6}')
+    
+    curl -sS "${crturldomainid}${id}" > "${tempfile}.${id}" 2>/dev/null
+    _checkerror "Failed to retrieve ${crturldomain}"
+    
+    validfrom=$(sed 's/Not&nbsp;Before:/\r\nBxexfxoxrxex:/g' "${tempfile}.${id}" | awk -F'<BR>' '/^Bxexfxoxrxex:/ {print $1}' | sed 's/Bxexfxoxrxex:&nbsp;//g' | sed 's/&nbsp;/ /g')
+    validfrom=$(LANG=C;date ${utc} -d "${validfrom}" +'%Y-%b-%d %H:%M %Z')
+    
+    validto=$(sed 's/Not&nbsp;After&nbsp;:&nbsp;/\r\nAxfxtxexrx:/g' "${tempfile}.${id}" | awk -F'<BR>' '/^Axfxtxexrx:/ {print $1}' | sed 's/Axfxtxexrx://g' | sed 's/&nbsp;/ /g')
+    validto=$(LANG=C;date ${utc} -d "${validto}" +'%Y-%b-%d %H:%M %Z')
+    
+    expiresin=$(($(($(LANG=C;date ${utc} -d "$(echo "${validto}" | awk -F'-| ' '{print $2,$3,$4,$5,$1}')" +"%s") - $(LANG=C;date ${utc} +"%s"))) / 86400))
+    expiresin="${expiresin} day$(_plural ${expiresin})"
+    
+    if [ "${showsans}" -eq "1" ]; then
+        SANS=$(sed 's/DNS:/\r\nDNS:/g' "${tempfile}.${id}" | awk -F'<BR>' '/^DNS:/ {print $1}' | sed 's/DNS:/ ; ; ; ; ;/g' | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/ ; ; ; ; ;//')
+        partialresult=$(printf "%s;%s;%s;%s;%s;%s" "$id" "$domainid" "$validfrom" "$validto" "$expiresin" "$SANS")
+        result="${result}\n${partialresult}${extraline}; ; ; ; ;\n"
+    else
+        partialresult=$(printf "%s;%s;%s;%s;%s;%s" "$id" "$domainid" "$validfrom" "$validto" "$expiresin")
+        result="${result}\n${partialresult}${extraline}; ; ; ;\n"
+    fi
+done
+
+finalresult=$result
+
+echo "I have found ${numberofcerts} ${nonexpired}certificate$(_plural $numberofcerts) for domain $domain and its subdomains *.$domain"
+printf '\n'
+echo -e "CRT ID;DOMAIN (CN);VALID FROM;VALID TO;EXPIRES IN${columnsans}\n$finalresult" | column -t -s ';'
+
+count=0
+finalresult=$(echo "$finalresult" | sed 's/\\n\\n/TRISCADEICADELICA/g' | sed 's/\\n//g' |sed 's/TRISCADEICADELICA/\n/g' |tr ' ' '_')
+
+for i in $(echo "${finalresult}" | awk -F';' '{print $3}');do
+    rightnow=$(LANG=C;date ${utc} +'%s')
+    i=$(echo "$i" | tr '_' ' ')
+    converteddate=$(echo "$i" | awk -F'-| ' '{print $2,$3,$4,$5,$1}')
+    certdate=$(LANG=C;date $utc -d "$converteddate" +'%s')
+    daystoexpire=$(((${rightnow}-${certdate})/(60*60*24)))
+
+    if [ "${daystoexpire}" -lt "7" ] && [ "${count}" -lt "5" ];then
+        count=$((count+1))
+        dentrode="${dentrode}\n${converteddate}"
+    fi
+done
+
+remaining=$((5-count))
+if [ $remaining -le 0 ];then
+    lastcert=$(echo -e "${dentrode}" | tail -n1 )
+    next=$(LANG=C; date ${utc} -d "${lastcert}+7 days 1 minute" +'%A %Y-%b-%d %H:%M:%S %Z')
+    if [ -z "${extraline}" ];then echo " ";fi
+        echo "Sorry, you can't issue any certificate, you already issued $count certificate$(_plural $count) on last 7 days"
+        echo "You could issue next certificate on $next"
+        printf '\n'
+        echo "Note 1: Keep in mind that if ${domain} is included in PSL (Public Suffix List) the rate limit could only be applied to your subdomain instead of your domain."
+        echo "Note 2: Right now Let's Encrypt is implementing a new feature so if you renew the exact cert (with the same FQDNs) the rate limit could not apply to your domain if you try to renew it."
+        printf '\n'
+    else
+        if [ -z "${extraline}" ];then echo " ";fi
+        echo "You have issued ${count} certificate$(_plural ${count}) in last 7 days so you could issue ${remaining} more certificate$(_plural ${remaining}) now."
+        printf '\n'
+    fi
+
+_housekeeping
