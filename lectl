@@ -238,17 +238,17 @@ echo " "
 
 # Get issued certificates for domain and subdomains (X1)
 curl -sS "$crturldomainx1" > "${tempfile}" 2>/dev/null
-_checkerror "Failed to retrieve ${crturldomain}"
+_checkerror "Failed to retrieve ${crturldomainx1}"
 
 curl -sS "$crturlsubdomainsx1" >> "${tempfile}" 2>/dev/null
-_checkerror "Failed to retrieve ${crturlsubdomains}"
+_checkerror "Failed to retrieve ${crturlsubdomainsx1}"
 
 # Get issued certificates for domain and subdomains (X3)
 curl -sS "$crturldomainx3" >> "${tempfile}" 2>/dev/null
-_checkerror "Failed to retrieve ${crturldomain2}"
+_checkerror "Failed to retrieve ${crturldomainx3}"
 
 curl -sS "$crturlsubdomainsx3" >> "${tempfile}" 2>/dev/null
-_checkerror "Failed to retrieve ${crturlsubdomains2}"
+_checkerror "Failed to retrieve ${crturlsubdomainsx3}"
 
 # Put certificates found in variable
 certsfound=$(grep '?id' "${tempfile}" | tr -d ' ')
@@ -270,7 +270,7 @@ for i in $(echo "${certsfound}");do
     domainid=$(echo "$i" | awk -F'CN=|>|<' '{print $6}')
     
     curl -sS "${crturldomainid}${id}" > "${tempfile}.${id}" 2>/dev/null
-    _checkerror "Failed to retrieve ${crturldomain}"
+    _checkerror "Failed to retrieve ${crturldomainid}${id}"
     
     validfrom=$(sed 's/Not&nbsp;Before:/\r\nBxexfxoxrxex:/g' "${tempfile}.${id}" | awk -F'<BR>' '/^Bxexfxoxrxex:/ {print $1}' | sed 's/Bxexfxoxrxex:&nbsp;//g' | sed 's/&nbsp;/ /g')
     validfrom=$(LANG=C;date ${utc} -d "${validfrom}" +'%Y-%b-%d %H:%M %Z')
