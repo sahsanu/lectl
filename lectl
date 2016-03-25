@@ -58,15 +58,16 @@
 #H
 # CHANGELOG:
 # 2016-Feb-10: Created (v0.1)
-# 2016-Mar-24: Public release with many fixes(v0.2)
+# 2016-Mar-24: Public release with many fixes (v0.2)
+# 2016-Mar-25: Add support to new certificate authority X3 (v0.3)
 #
 # TODO:
 # Clean up and comment the code
 
 # Script version/name variables
-version='0.2'
+version='0.3'
 scriptname='lectl'
-lastmodification='2016-March-24'
+lastmodification='2016-March-25'
 
 _showversion() {
     echo "${scriptname} $version (${lastmodification})"
@@ -223,20 +224,31 @@ fi
 tempfile="${tempdir}/${domain}.$$.rl.tmp"
 
 # Define crt.sh urls
-crturldomain="https://crt.sh/?Identity=${domain}&iCAID=7395${expired}"
-crturlsubdomains="https://crt.sh/?Identity=%.${domain}&iCAID=7395${expired}"
+caidlex1='7395'
+caidlex3='16418'
+
+crturldomainx1="https://crt.sh/?Identity=${domain}&iCAID=${caidlex1}${expired}"
+crturlsubdomainsx1="https://crt.sh/?Identity=%.${domain}&iCAID=${caidlex1}${expired}"
+crturldomainx3="https://crt.sh/?Identity=${domain}&iCAID=${caidlex3}${expired}"
+crturlsubdomainsx3="https://crt.sh/?Identity=%.${domain}&iCAID=${caidlex3}${expired}"
 crturldomainid="https://crt.sh/?id="
 
 echo "$(LANG=C;date +"%Y/%B/%d %H:%M:%S") - Checking certs for ${domain}"
 echo " "
 
-# Get issued certificates for domain
-curl -sS "$crturldomain" > "${tempfile}" 2>/dev/null
+# Get issued certificates for domain and subdomains (X1)
+curl -sS "$crturldomainx1" > "${tempfile}" 2>/dev/null
 _checkerror "Failed to retrieve ${crturldomain}"
 
-# Get issued certificates for sub domains
-curl -sS "$crturlsubdomains" >> "${tempfile}" 2>/dev/null
+curl -sS "$crturlsubdomainsx1" >> "${tempfile}" 2>/dev/null
 _checkerror "Failed to retrieve ${crturlsubdomains}"
+
+# Get issued certificates for domain and subdomains (X3)
+curl -sS "$crturldomainx3" >> "${tempfile}" 2>/dev/null
+_checkerror "Failed to retrieve ${crturldomain2}"
+
+curl -sS "$crturlsubdomainsx3" >> "${tempfile}" 2>/dev/null
+_checkerror "Failed to retrieve ${crturlsubdomains2}"
 
 # Put certificates found in variable
 certsfound=$(grep '?id' "${tempfile}" | tr -d ' ')
