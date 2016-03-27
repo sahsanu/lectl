@@ -60,14 +60,15 @@
 # 2016-Feb-10: Created (v0.1)
 # 2016-Mar-24: Public release with many fixes (v0.2)
 # 2016-Mar-25: Add support to new certificate authority X3 (v0.3)
+# 2016-Mar-27: Rate limits have changed from 5 per 7 days to 20 per 7 days (v0.4)
 #
 # TODO:
 # Clean up and comment the code
 
 # Script version/name variables
-version='0.3'
+version='0.4'
 scriptname='lectl'
-lastmodification='2016-March-25'
+lastmodification='2016-March-27'
 
 _showversion() {
     echo "${scriptname} $version (${lastmodification})"
@@ -96,6 +97,7 @@ columnsans=""
 showexpired="1"
 expired='&exclude=expired'
 nonexpired="non expired "
+ratelimit='20'
 
 # Define message functions
 _echoerr()  { echo "Error: $@" >&2; }
@@ -307,13 +309,13 @@ for i in $(echo "${finalresult}" | awk -F';' '{print $3}');do
     certdate=$(LANG=C;date $utc -d "$converteddate" +'%s')
     daystoexpire=$(((${rightnow}-${certdate})/(60*60*24)))
 
-    if [ "${daystoexpire}" -lt "7" ] && [ "${count}" -lt "5" ];then
+    if [ "${daystoexpire}" -lt "7" ] && [ "${count}" -lt "${ratelimit}" ];then
         count=$((count+1))
         dentrode="${dentrode}\n${converteddate}"
     fi
 done
 
-remaining=$((5-count))
+remaining=$((${ratelimit}-count))
 if [ $remaining -le 0 ];then
     lastcert=$(echo -e "${dentrode}" | tail -n1 )
     next=$(LANG=C; date ${utc} -d "${lastcert}+7 days 1 minute" +'%A %Y-%b-%d %H:%M:%S %Z')
