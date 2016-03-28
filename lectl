@@ -6,6 +6,8 @@
 #
 # Note: crt.sh is property of COMODO CA Limited 2015-2016
 
+# Author: sahsanu
+	
 # DOWNLOAD lectl
 # You'll find last lectl version at https://github.com/sahsanu/lectl
 
@@ -61,14 +63,15 @@
 # 2016-Mar-24: Public release with many fixes (v0.2)
 # 2016-Mar-25: Add support to new certificate authority X3 (v0.3)
 # 2016-Mar-27: Rate limits have changed from 5 per 7 days to 20 per 7 days (v0.4)
+# 2016-Mar-28: Add support to Let's Encrypt authorities X2 and X4 (v0.5)
 #
 # TODO:
 # Clean up and comment the code
 
 # Script version/name variables
-version='0.4'
+version='0.5'
 scriptname='lectl'
-lastmodification='2016-March-27'
+lastmodification='2016-March-28'
 
 _showversion() {
     echo "${scriptname} $version (${lastmodification})"
@@ -139,7 +142,7 @@ _showhelp() {
     sed 's/#H//' <<< "${help}"
 }
 
-# Clean the house 
+# Clean the house
 _housekeeping() {
     if [ -d "${tempdir}" ];then
         rm -rf "${tempdir}"
@@ -193,7 +196,7 @@ _parseoptions() {
         printf '\n'
         exit 1
     fi
-    
+
     if [ -z "${domain}" ];then
         _echoerr "You MUST specify a domain name."
         printf '\n'
@@ -225,32 +228,27 @@ if [ ! -d "${tempdir}" ];then
 fi
 tempfile="${tempdir}/${domain}.$$.rl.tmp"
 
-# Define crt.sh urls
-caidlex1='7395'
-caidlex3='16418'
-
-crturldomainx1="https://crt.sh/?Identity=${domain}&iCAID=${caidlex1}${expired}"
-crturlsubdomainsx1="https://crt.sh/?Identity=%.${domain}&iCAID=${caidlex1}${expired}"
-crturldomainx3="https://crt.sh/?Identity=${domain}&iCAID=${caidlex3}${expired}"
-crturlsubdomainsx3="https://crt.sh/?Identity=%.${domain}&iCAID=${caidlex3}${expired}"
-crturldomainid="https://crt.sh/?id="
-
+# Let's go
 echo "$(LANG=C;date +"%Y/%B/%d %H:%M:%S") - Checking certs for ${domain}"
 echo " "
 
-# Get issued certificates for domain and subdomains (X1)
-curl -sS "$crturldomainx1" > "${tempfile}" 2>/dev/null
-_checkerror "Failed to retrieve ${crturldomainx1}"
+# Define Let's Encrypt Authorities ids and crt.sh url
+caidlex1='7395'
+caidlex2='9745'
+caidlex3='16418'
+caidlex4='16429'
+caidsle="${caidlex1} ${caidlex2} ${caidlex3} ${caidlex4}"
+crturldomainid="https://crt.sh/?id="
 
-curl -sS "$crturlsubdomainsx1" >> "${tempfile}" 2>/dev/null
-_checkerror "Failed to retrieve ${crturlsubdomainsx1}"
+for caid in ${caidsle};do
+# Get issued certificates for domain and subdomains (X1, X2, X3 & X4)
+    curl -sSk "https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}" >> "${tempfile}" 2>/dev/null
+    _checkerror "Failed to retrieve https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}"
 
-# Get issued certificates for domain and subdomains (X3)
-curl -sS "$crturldomainx3" >> "${tempfile}" 2>/dev/null
-_checkerror "Failed to retrieve ${crturldomainx3}"
+    curl -sSk "https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}" >> "${tempfile}" 2>/dev/null
+    _checkerror "Failed to retrieve https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}"
 
-curl -sS "$crturlsubdomainsx3" >> "${tempfile}" 2>/dev/null
-_checkerror "Failed to retrieve ${crturlsubdomainsx3}"
+done
 
 # Put certificates found in variable
 certsfound=$(grep '?id' "${tempfile}" | tr -d ' ')
@@ -270,19 +268,19 @@ fi
 for i in $(echo "${certsfound}");do
     id=$(echo "$i" | awk -F'id=|>|"' '{print $4}')
     domainid=$(echo "$i" | awk -F'CN=|>|<' '{print $6}')
-    
+
     curl -sS "${crturldomainid}${id}" > "${tempfile}.${id}" 2>/dev/null
     _checkerror "Failed to retrieve ${crturldomainid}${id}"
-    
+
     validfrom=$(sed 's/Not&nbsp;Before:/\r\nBxexfxoxrxex:/g' "${tempfile}.${id}" | awk -F'<BR>' '/^Bxexfxoxrxex:/ {print $1}' | sed 's/Bxexfxoxrxex:&nbsp;//g' | sed 's/&nbsp;/ /g')
     validfrom=$(LANG=C;date ${utc} -d "${validfrom}" +'%Y-%b-%d %H:%M %Z')
-    
+
     validto=$(sed 's/Not&nbsp;After&nbsp;:&nbsp;/\r\nAxfxtxexrx:/g' "${tempfile}.${id}" | awk -F'<BR>' '/^Axfxtxexrx:/ {print $1}' | sed 's/Axfxtxexrx://g' | sed 's/&nbsp;/ /g')
     validto=$(LANG=C;date ${utc} -d "${validto}" +'%Y-%b-%d %H:%M %Z')
-    
+
     expiresin=$(($(($(LANG=C;date ${utc} -d "$(echo "${validto}" | awk -F'-| ' '{print $2,$3,$4,$5,$1}')" +"%s") - $(LANG=C;date ${utc} +"%s"))) / 86400))
     expiresin="${expiresin} day$(_plural ${expiresin})"
-    
+
     if [ "${showsans}" -eq "1" ]; then
         SANS=$(sed 's/DNS:/\r\nDNS:/g' "${tempfile}.${id}" | awk -F'<BR>' '/^DNS:/ {print $1}' | sed 's/DNS:/ ; ; ; ; ;/g' | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/ ; ; ; ; ;//')
         partialresult=$(printf "%s;%s;%s;%s;%s;%s" "$id" "$domainid" "$validfrom" "$validto" "$expiresin" "$SANS")
