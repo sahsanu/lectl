@@ -64,14 +64,15 @@
 # 2016-Mar-25: Add support to new certificate authority X3 (v0.3)
 # 2016-Mar-27: Rate limits have changed from 5 per 7 days to 20 per 7 days (v0.4)
 # 2016-Mar-28: Add support to Let's Encrypt authorities X2 and X4 (v0.5)
+# 2016-Apr-04: Fix, if no domain is found in crt.sh the script didn't perform the housekeeping (v0.6)
 #
 # TODO:
 # Clean up and comment the code
 
 # Script version/name variables
-version='0.5'
+version='0.6'
 scriptname='lectl'
-lastmodification='2016-March-28'
+lastmodification='2016-April-04'
 
 _showversion() {
     echo "${scriptname} $version (${lastmodification})"
@@ -262,6 +263,7 @@ numberofcerts=$(echo "${certsfound}" | grep '>CN=' | wc -l)
 if [ "${numberofcerts}" -le 0 ];then
     _echoinf "I've not found any certificate for the domain ${domain}"
     printf '\n'
+    _housekeeping
     exit 0
 fi
 
