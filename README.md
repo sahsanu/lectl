@@ -40,3 +40,4 @@ lectl -su --extraline letsencryt.org
 lectl -u letsencryt.org -es
 ...and so on
 ```
+<img src="https://cloud.githubusercontent.com/assets/10560305/14279272/a58c6f7c-fb2c-11e5-9456-364765fe1c46.png" width="90%"></img> <img src="https://cloud.githubusercontent.com/assets/10560305/14279274/a58d1ca6-fb2c-11e5-823a-2b9f4a3bd6d6.png" width="90%"></img> <img src="https://cloud.githubusercontent.com/assets/10560305/14279270/a5896bf6-fb2c-11e5-98c3-0ce7e30e7806.png" width="90%"></img> <img src="https://cloud.githubusercontent.com/assets/10560305/14279271/a58ae83c-fb2c-11e5-8cf2-de0401d30ccc.png" width="90%"></img> <img src="https://cloud.githubusercontent.com/assets/10560305/14279269/a5882386-fb2c-11e5-9977-37b4e7ac2703.png" width="90%"></img> <img src="https://cloud.githubusercontent.com/assets/10560305/14279273/a58d159e-fb2c-11e5-8b73-be5b220f70ad.png" width="90%"></img> 
