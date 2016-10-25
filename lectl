@@ -66,19 +66,34 @@
 # 2016-Mar-28: Add support to Let's Encrypt authorities X2 and X4 (v0.5)
 # 2016-Apr-04: Fix, if no domain is found in crt.sh the script didn't perform the housekeeping (v0.6)
 # 2016-Jun-04: Fix, add env language variables pointing to C locale so date command output is in english (v0.7)
+# 2016-Oct-26: Fix, crt.sh web page changed the html of their pages so lectl was not working at all (v0.8)
+# 2016-Oct-26: Enhanced, CA IDs assigned by crt.sh to Let's Encrypt (X1, X2, X3...) are not harcoded anymore, they are fetched dynamically from crt.sh web page (v0.8)
 #
 # TODO:
 # Clean up and comment the code
+# Create auto-update version (comming soon)
 
 # Script version/name variables
-version='0.7'
+version='0.8'
 scriptname='lectl'
-lastmodification='2016-June-04'
+lastmodification='2016-October-26'
+checknewversion=1
+forceupgrade=0
 
 #Export env language variables to use C locale
 export LANG=C
 export LANGUAGE=C
 export LC_ALL=C
+
+_selfupgrade() {
+echo ""
+}
+
+_checknewversion() {
+    if [ $checknewversion = 1 ];then
+        lectllastsource=$(curl -sSk "https://raw.githubusercontent.com/sahsanu/lectl/master/lectl")
+    fi
+}
 
 _showversion() {
     echo "${scriptname} $version (${lastmodification})"
@@ -239,26 +254,27 @@ tempfile="${tempdir}/${domain}.$$.rl.tmp"
 echo "$(date +"%Y/%B/%d %H:%M:%S") - Checking certs for ${domain}"
 echo " "
 
-# Define Let's Encrypt Authorities ids and crt.sh url
-caidlex1='7395'
-caidlex2='9745'
-caidlex3='16418'
-caidlex4='16429'
-caidsle="${caidlex1} ${caidlex2} ${caidlex3} ${caidlex4}"
+#Get CA ids assigned to Let's Encrypt by crt.sh
+caidsle=$(curl -sSk "https://crt.sh/?CAName=%25s+Encrypt%25")
+_checkerror "Failed to retrieve Lets Encrypt CA ids"
+
+caidsle=$(echo "$caidsle" | awk -F '=|"|<' '/caid/ {print $6}')
+_checkerror "Failed to split Lets Encrypt CA ids"
+
+# Define crt.sh url
 crturldomainid="https://crt.sh/?id="
 
 for caid in ${caidsle};do
-# Get issued certificates for domain and subdomains (X1, X2, X3 & X4)
+# Get issued certificates for domain and subdomains (X1, X2, X3, X4, etc.)
     curl -sSk "https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}" >> "${tempfile}" 2>/dev/null
     _checkerror "Failed to retrieve https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}"
 
     curl -sSk "https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}" >> "${tempfile}" 2>/dev/null
     _checkerror "Failed to retrieve https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}"
-
 done
 
 # Put certificates found in variable
-certsfound=$(grep '?id' "${tempfile}" | tr -d ' ')
+certsfound=$(grep -A3 '?id' "${tempfile}" | sed ':a;N;$!ba;s/>\n//g'| tr -d ' ')
 
 # Sorting output and removing duplicates so last cert is the first in the list
 certsfound=$(echo "$certsfound" | sed 's/^.*id=//' | sort -run | sed 's/^/<TD><Ahref="?id=/')
@@ -275,7 +291,7 @@ fi
 
 for i in $(echo "${certsfound}");do
     id=$(echo "$i" | awk -F'id=|>|"' '{print $4}')
-    domainid=$(echo "$i" | awk -F'CN=|>|<' '{print $6}')
+    domainid=$(echo "$i" | awk -F'CN=|>|<' '{print $17}')
 
     curl -sS "${crturldomainid}${id}" > "${tempfile}.${id}" 2>/dev/null
     _checkerror "Failed to retrieve ${crturldomainid}${id}"
