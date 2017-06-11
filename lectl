@@ -68,15 +68,16 @@
 # 2016-Jun-04: Fix, add env language variables pointing to C locale so date command output is in english (v0.7)
 # 2016-Oct-26: Fix, crt.sh web page changed the html of their pages so lectl was not working at all (v0.8)
 # 2016-Oct-26: Enhanced, CA IDs assigned by crt.sh to Let's Encrypt (X1, X2, X3...) are not harcoded anymore, they are fetched dynamically from crt.sh web page (v0.8)
+# 2017-Jun-11: Fix, if the number of certificates to display is 100 or more the columns were not displayed correctly (v0.9)
 #
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming soon)
 
 # Script version/name variables
-version='0.8'
+version='0.9'
 scriptname='lectl'
-lastmodification='2016-October-26'
+lastmodification='2017-June-11'
 checknewversion=1
 forceupgrade=0
 
@@ -274,7 +275,7 @@ for caid in ${caidsle};do
 done
 
 # Put certificates found in variable
-certsfound=$(grep -A3 '?id' "${tempfile}" | sed ':a;N;$!ba;s/>\n//g'| tr -d ' ')
+certsfound=$(grep -A3 '?id=' "${tempfile}" | sed ':a;N;$!ba;s/>\n//g'| tr -d ' ')
 
 # Sorting output and removing duplicates so last cert is the first in the list
 certsfound=$(echo "$certsfound" | sed 's/^.*id=//' | sort -run | sed 's/^/<TD><Ahref="?id=/')
