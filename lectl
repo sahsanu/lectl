@@ -267,10 +267,10 @@ crturldomainid="https://crt.sh/?id="
 
 for caid in ${caidsle};do
 # Get issued certificates for domain and subdomains (X1, X2, X3, X4, etc.)
-    curl -sSk "https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}" >> "${tempfile}" 2>/dev/null
+    curl -sSk "https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}&p=1&n=1000" >> "${tempfile}" 2>/dev/null
     _checkerror "Failed to retrieve https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}"
 
-    curl -sSk "https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}" >> "${tempfile}" 2>/dev/null
+    curl -sSk "https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}&p=1&n=1000" >> "${tempfile}" 2>/dev/null
     _checkerror "Failed to retrieve https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}"
 done
 
