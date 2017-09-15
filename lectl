@@ -48,14 +48,30 @@
 #H -u | --utc       [Default: false] shows the dates in UTC (GMT) instead of
 #H                  your machine time zone.
 #H
+#H -m               [Default: 100] searchs for more or less than 100 certificates
+#H                  per domain OR subdomain. It means that if for example you use
+#H                  option -m25 you could receive an output of max 50 certs (25 for
+#H                  the domain and 25 for *.domain).
+#H                  If this option is not used, lectl searchs only for last 100
+#H                  certificates. If the option is used it searches by default
+#H                  for last 1000 certificates.
+#H                  If you want to search for more or less certificates, append
+#H                  the number after the option with no spaces (Ex: -m500). If
+#H                  you specify a number, then the option must be specified
+#H                  independently.
+#H                  Wrong: lectl -seulm500 domain.tld
+#H                  Good: lectl -seul -m500 domain.tld
+#H
+#H
 #H Examples:
 #H
 #H     lectl letsencryt.org
 #H     lectl -s -e -u -l letsencryt.org
-#H     lectl -seul letsencryt.org
-#H     lectl -luse letsencryt.org
+#H     lectl -seulm letsencryt.org
+#H     lectl -lumse letsencryt.org
 #H     lectl -su --extraline letsencryt.org
-#H     lectl -u letsencryt.org -es
+#H     lectl -u letsencryt.org -esm
+#H     lectl -seul -m500 letsencryt.org
 #H     ...and so on
 #H
 # CHANGELOG:
@@ -69,17 +85,20 @@
 # 2016-Oct-26: Fix, crt.sh web page changed the html of their pages so lectl was not working at all (v0.8)
 # 2016-Oct-26: Enhanced, CA IDs assigned by crt.sh to Let's Encrypt (X1, X2, X3...) are not harcoded anymore, they are fetched dynamically from crt.sh web page (v0.8)
 # 2017-Jun-11: Fix, if the number of certificates to display is 100 or more the columns were not displayed correctly (v0.9)
+# 2017-Sep-15: Enhanced, added option -m to search for more (or less) than 100 (default option) certificates. This option closes issue https://github.com/sahsanu/lectl/issues/2 (v0.10)
+# 2017-Sep-15: I want to thank Github User spikebike (https://github.com/spikebike) for the tip to be able to search more or less than 100 certificates on crt.sh site (v0.10)
 #
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming soon)
 
 # Script version/name variables
-version='0.9'
+version='0.10'
 scriptname='lectl'
-lastmodification='2017-June-11'
+lastmodification='2017-September-15'
 checknewversion=1
 forceupgrade=0
+maxnumberofcerts=100
 
 #Export env language variables to use C locale
 export LANG=C
@@ -197,6 +216,27 @@ _trap_exit() { # Handle trapped signals
 trap "_trap_exit INT" INT
 trap "_trap_exit TERM" TERM HUP
 
+_parsemorecerts() {
+    if [ "$1" == "" ]; then
+        maxnumberofcerts="100"
+        return
+    fi
+    if [ "$1" == "-m" ]; then
+        maxnumberofcerts="1000"
+        return
+    else
+        _tmp_maxnumberofcerts=$(echo "$1" | tr -d '\-m')
+        re='^[0-9]+$'
+        if ! [[ $_tmp_maxnumberofcerts =~ $re ]] ; then
+           _echoerr "Option for -m is not a number"
+           printf '\n'
+           exit 150
+        else
+           maxnumberofcerts=$_tmp_maxnumberofcerts
+           return
+        fi
+    fi
+}
 
 # Parse options
 _parseoptions() {
@@ -209,6 +249,7 @@ _parseoptions() {
                    -e|--expired) showexpired="0"; expired=''; nonexpired='' ;;
                  -l|--extraline) extraline='\n' ;;
                  -v | --version) exit ;;
+                            -m*) _parsemorecerts "$1" ;;
                        -* | --*) _echoerr "Unknown option $1"; _showusage; exit 1 ;;
                               *) domain="${1}" ;;
             esac
@@ -264,14 +305,15 @@ _checkerror "Failed to split Lets Encrypt CA ids"
 
 # Define crt.sh url
 crturldomainid="https://crt.sh/?id="
+numberofcerts="&p=1&n=${maxnumberofcerts}"
 
 for caid in ${caidsle};do
 # Get issued certificates for domain and subdomains (X1, X2, X3, X4, etc.)
-    curl -sSk "https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}" >> "${tempfile}" 2>/dev/null
-    _checkerror "Failed to retrieve https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}"
+    curl -sSk "https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}${numberofcerts}" >> "${tempfile}" 2>/dev/null
+    _checkerror "Failed to retrieve https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}${numberofcerts}"
 
-    curl -sSk "https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}" >> "${tempfile}" 2>/dev/null
-    _checkerror "Failed to retrieve https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}"
+    curl -sSk "https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}${numberofcerts}" >> "${tempfile}" 2>/dev/null
+    _checkerror "Failed to retrieve https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}${numberofcerts}"
 done
 
 # Put certificates found in variable
@@ -318,12 +360,12 @@ done
 
 finalresult=$result
 
-echo "I have found ${numberofcerts} ${nonexpired}certificate$(_plural $numberofcerts) for domain $domain and its subdomains *.$domain"
+echo "I have found ${numberofcerts} ${nonexpired}certificate$(_plural $numberofcerts) (max number of certs searched: ${maxnumberofcerts}) for domain ${domain} and its subdomains *.${domain}"
 printf '\n'
-echo -e "CRT ID;DOMAIN (CN);VALID FROM;VALID TO;EXPIRES IN${columnsans}\n$finalresult" | column -t -s ';'
+echo -e "CRT ID;DOMAIN (CN);VALID FROM;VALID TO;EXPIRES IN${columnsans}\n${finalresult}" | column -t -s ';'
 
 count=0
-finalresult=$(echo "$finalresult" | sed 's/\\n\\n/TRISCADEICADELICA/g' | sed 's/\\n//g' |sed 's/TRISCADEICADELICA/\n/g' |tr ' ' '_')
+finalresult=$(echo "${finalresult}" | sed 's/\\n\\n/TRISCADEICADELICA/g' | sed 's/\\n//g' |sed 's/TRISCADEICADELICA/\n/g' |tr ' ' '_')
 
 for i in $(echo "${finalresult}" | awk -F';' '{print $3}');do
     rightnow=$(date ${utc} +'%s')
