@@ -2,7 +2,7 @@
 
 Script to check issued certificates by Let's Encrypt on CTL (Certificate Transparency Log) using https://crt.sh 
 
-Note: crt.sh is property of COMODO CA Limited 2015-2016
+Note: crt.sh is property of COMODO CA Limited 2015-2017
 
 
 **Usage**
