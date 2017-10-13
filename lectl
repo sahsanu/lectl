@@ -26,7 +26,7 @@
 # HELP:
 #U Usage:
 #U
-#U lectl [-h|--help] [-v|--version] [-l|--extraline] [-s|--sans] [-e|--expired] [-u|--utc] domain
+#U lectl [-h|--help] [-v|--version] [-l|--extraline] [-s|--sans] [-e|--expired] [-u|--utc] [-m] domain
 #U
 #H Options:
 #H
