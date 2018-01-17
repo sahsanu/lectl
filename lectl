@@ -94,8 +94,8 @@
 # Create auto-update version (comming soon)
 
 #Variables for utilities
-_date=date #Change date by gdate if you are using homebrew on OS X
-_sed=sed   #Change sed by gsed if you are using homebrew on OS X
+_date=date
+_sed=sed
 _grep=grep
 _curl=curl
 _awk=awk
@@ -105,6 +105,12 @@ _column=column
 _tail=tail
 _tr=tr
 _wc=wc
+
+# macOS compatibility
+if [ "$(uname)" = "Darwin" ]; then
+    _date=gdate
+    _sed=gsed
+fi
 
 # Script version/name variables
 version='0.11'
