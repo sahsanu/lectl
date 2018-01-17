@@ -89,6 +89,7 @@
 # 2017-Sep-15: I want to thank Github User spikebike (https://github.com/spikebike) for the tip to be able to search more or less than 100 certificates on crt.sh site (v0.10)
 # 2017-Oct-06: Enhanced, utilities are defined in variables so it is easier to change them if you are using for example OS X and want to change date by gnu date (ggdate) (v0.11)
 # 2017-Oct-06: Fix, if maxnumberofcerts is less than ratelimit there is no need to show any advice because it won't be accurate (v0.11)
+# 2018-Jan-17: Enhanced, added option to use gdate and gsed in MacOS thanks to fnkr https://github.com/fnkr
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming soon)
@@ -107,15 +108,15 @@ _tr=tr
 _wc=wc
 
 # macOS compatibility
-if [ "$(uname)" = "Darwin" ]; then
+if [ "$(uname -s)" = "Darwin" ]; then
     _date=gdate
     _sed=gsed
 fi
 
 # Script version/name variables
-version='0.11'
+version='0.12'
 scriptname='lectl'
-lastmodification='2017-October-06'
+lastmodification='2018-January-17'
 checknewversion=1
 forceupgrade=0
 maxnumberofcerts=100
