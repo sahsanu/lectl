@@ -408,7 +408,7 @@ if [ $maxnumberofcerts -ge $ratelimit ]; then
     remaining=$((${ratelimit}-count))
     if [ $remaining -le 0 ];then
         lastcert=$(echo -e "${dentrode}" | $_tail -n1 )
-        next=$($_date ${utc} -d "${lastcert}+7 days 1 minute" +'%A %Y-%b-%d %H:%M:%S %Z')
+        next=$($_date ${utc} -d "${lastcert}+7 days 1 hour 1 minute" +'%A %Y-%b-%d %H:%M:%S %Z')
         if [ -z "${extraline}" ];then echo " ";fi
             echo "Sorry, you can't issue any certificate, you already issued $count certificate$(_plural $count) on last 7 days"
             echo "You could issue next certificate on $next"
