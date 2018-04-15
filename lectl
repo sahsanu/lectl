@@ -91,6 +91,7 @@
 # 2017-Oct-06: Fix, if maxnumberofcerts is less than ratelimit there is no need to show any advice because it won't be accurate (v0.11)
 # 2018-Jan-17: Enhanced, added option to use gdate and gsed in MacOS thanks to fnkr https://github.com/fnkr (v0.12)
 # 2018-Feb-15: Fix, add 1 hour when showing the next date you could issue a cert when hitting the rate limit. This is because Let's Encrypt always issue the certificates using 1 hour less than real time but Let's Encrypt keeps the real time in their DB to remove expired limits (v0.13)
+# 2018-Apr-16: Enhanced, added column CERT TYPE to show whether the logged cert is the Final cert or the Pre cert. Due LE is embeding SCT receipts in certificates, the certificates are logged twice, the pre certificate and the final cert with the embeded SCT receipts. As Final certificates are logged a few hours or days after the pre certificate, the script only takes care of pre certificates to check them against the rate limits (v0.14)
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming soon)
@@ -115,9 +116,9 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 # Script version/name variables
-version='0.13'
+version='0.14'
 scriptname='lectl'
-lastmodification='2018-February-15'
+lastmodification='2018-April-16'
 checknewversion=1
 forceupgrade=0
 maxnumberofcerts=100
@@ -180,7 +181,8 @@ _checkerror() {
         printf '\n'
         _housekeeping
         exit ${rc}
-    fi
+fi
+
 }
 
 # No comment[s]
@@ -323,7 +325,7 @@ caidsle=$($_curl -sSk "https://crt.sh/?CAName=%25s+Encrypt%25")
 _checkerror "Failed to retrieve Lets Encrypt CA ids"
 
 caidsle=$(echo "$caidsle" | $_awk -F '=|"|<' '/caid/ {print $6}')
-_checkerror "Failed to split Lets Encrypt CA ids"
+_checkerror "Failed to split Lets Encrypt CA ids" 145
 
 # Define crt.sh url
 crturldomainid="https://crt.sh/?id="
@@ -355,6 +357,9 @@ if [ "${numberofcerts}" -le 0 ];then
     exit 0
 fi
 
+numberfinalcerts=0
+numberprecerts=0
+
 for i in $(echo "${certsfound}");do
     id=$(echo "$i" | $_awk -F'id=|>|"' '{print $4}')
     domainid=$(echo "$i" | $_awk -F'CN=|>|<' '{print $17}')
@@ -362,6 +367,14 @@ for i in $(echo "${certsfound}");do
     $_curl -sS "${crturldomainid}${id}" > "${tempfile}.${id}" 2>/dev/null
     _checkerror "Failed to retrieve ${crturldomainid}${id}"
 
+    certtype="$(grep -A1 '>Summary<' "${tempfile}.${id}" | grep 'Precertificate' 1>/dev/null 2>&1)"
+    if [ $? -eq 0 ];then
+        certtype="Pre cert"
+        numberprecerts=$((numberprecerts + 1))
+    else
+        certtype="Final cert"
+        numberfinalcerts=$((numberfinalcerts + 1))
+    fi
     validfrom=$($_sed 's/Not&nbsp;Before:/\r\nBxexfxoxrxex:/g' "${tempfile}.${id}" | $_awk -F'<BR>' '/^Bxexfxoxrxex:/ {print $1}' | $_sed 's/Bxexfxoxrxex:&nbsp;//g' | $_sed 's/&nbsp;/ /g')
     validfrom=$($_date ${utc} -d "${validfrom}" +'%Y-%b-%d %H:%M %Z')
 
@@ -372,25 +385,26 @@ for i in $(echo "${certsfound}");do
     expiresin="${expiresin} day$(_plural ${expiresin})"
 
     if [ "${showsans}" -eq "1" ]; then
-        SANS=$($_sed 's/DNS:/\r\nDNS:/g' "${tempfile}.${id}" | $_awk -F'<BR>' '/^DNS:/ {print $1}' | $_sed 's/DNS:/ ; ; ; ; ;/g' | $_sed ':a;N;$!ba;s/\n/\\n/g' | $_sed 's/ ; ; ; ; ;//')
-        partialresult=$(printf "%s;%s;%s;%s;%s;%s" "$id" "$domainid" "$validfrom" "$validto" "$expiresin" "$SANS")
-        result="${result}\n${partialresult}${extraline}; ; ; ; ;\n"
+        SANS=$($_sed 's/DNS:/\r\nDNS:/g' "${tempfile}.${id}" | $_awk -F'<BR>' '/^DNS:/ {print $1}' | $_sed 's/DNS:/ ; ; ; ; ; ;/g' | $_sed ':a;N;$!ba;s/\n/\\n/g' | $_sed 's/ ; ; ; ; ; ;//')
+        partialresult=$(printf "%s;%s;%s;%s;%s;%s;%s" "$id" "$certtype" "$domainid" "$validfrom" "$validto" "$expiresin" "$SANS")
+        result="${result}\n${partialresult}${extraline}; ; ; ; ; ;\n"
     else
-        partialresult=$(printf "%s;%s;%s;%s;%s;%s" "$id" "$domainid" "$validfrom" "$validto" "$expiresin")
-        result="${result}\n${partialresult}${extraline}; ; ; ;\n"
+        partialresult=$(printf "%s;%s;%s;%s;%s;%s" "$id" "$certtype" "$domainid" "$validfrom" "$validto" "$expiresin")
+        result="${result}\n${partialresult}${extraline}; ; ; ; ;\n"
     fi
 done
 
 finalresult=$result
 
-echo "I have found ${numberofcerts} ${nonexpired}certificate$(_plural $numberofcerts) (max number of certs searched: ${maxnumberofcerts}) for domain ${domain} and its subdomains *.${domain}"
+echo "I have found ${numberofcerts} ${nonexpired}certificate$(_plural $numberofcerts) ($numberfinalcerts final cert$(_plural $numberfinalcerts) and $numberprecerts pre cert$(_plural $numberprecerts)) (max number of certs searched: ${maxnumberofcerts}) for domain ${domain} and its subdomains *.${domain}"
 printf '\n'
-echo -e "CRT ID;DOMAIN (CN);VALID FROM;VALID TO;EXPIRES IN${columnsans}\n${finalresult}" | $_column -t -s ';'
+echo -e "CRT ID;CERT TYPE;DOMAIN (CN);VALID FROM;VALID TO;EXPIRES IN${columnsans}\n${finalresult}" | $_column -t -s ';'
 
 count=0
 finalresult=$(echo "${finalresult}" | $_sed 's/\\n\\n/TRISCADEICADELICA/g' | $_sed 's/\\n//g' | $_sed 's/TRISCADEICADELICA/\n/g' | $_tr ' ' '_')
+#finalresultforlimits=$(echo "${finalresult}" | grep -v 'Pre cert')
 
-for i in $(echo "${finalresult}" | $_awk -F';' '{print $3}');do
+for i in $(echo "${finalresult}" | grep -v 'Final_cert' | $_awk -F';' '{print $4}');do
     rightnow=$($_date ${utc} +'%s')
     i=$(echo "$i" | $_tr '_' ' ')
     converteddate=$(echo "$i" | $_awk -F'-| ' '{print $2,$3,$4,$5,$1}')
