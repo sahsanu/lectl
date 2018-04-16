@@ -26,7 +26,7 @@
 # HELP:
 #U Usage:
 #U
-#U lectl [-h|--help] [-v|--version] [-l|--extraline] [-s|--sans] [-e|--expired] [-u|--utc] [-m] domain
+#U lectl [-h|--help] [-v|--version] [-l|--extraline] [-s|--sans] [-e|--expired] [-u|--utc] [-m] [-p|--pre] [-f|--final] domain
 #U
 #H Options:
 #H
@@ -62,16 +62,19 @@
 #H                  Wrong: lectl -seulm500 domain.tld
 #H                  Good: lectl -seul -m500 domain.tld
 #H
+#H -p | --pre       [Default: true] shows only logged pre certs.
+#H
+#H -f | --final     [Default: true] shows only logged final certs.
 #H
 #H Examples:
 #H
 #H     lectl letsencryt.org
-#H     lectl -s -e -u -l letsencryt.org
-#H     lectl -seulm letsencryt.org
-#H     lectl -lumse letsencryt.org
+#H     lectl -s -e -u -l -p letsencryt.org
+#H     lectl -seulmf letsencryt.org
+#H     lectl -lumsep letsencryt.org
 #H     lectl -su --extraline letsencryt.org
-#H     lectl -u letsencryt.org -esm
-#H     lectl -seul -m500 letsencryt.org
+#H     lectl -u letsencryt.org -esm --final
+#H     lectl -seulp -m500 letsencryt.org
 #H     ...and so on
 #H
 # CHANGELOG:
@@ -92,6 +95,7 @@
 # 2018-Jan-17: Enhanced, added option to use gdate and gsed in MacOS thanks to fnkr https://github.com/fnkr (v0.12)
 # 2018-Feb-15: Fix, add 1 hour when showing the next date you could issue a cert when hitting the rate limit. This is because Let's Encrypt always issue the certificates using 1 hour less than real time but Let's Encrypt keeps the real time in their DB to remove expired limits (v0.13)
 # 2018-Apr-16: Enhanced, added column CERT TYPE to show whether the logged cert is the Final cert or the Pre cert. Due LE is embeding SCT receipts in certificates, the certificates are logged twice, the pre certificate and the final cert with the embeded SCT receipts. As Final certificates are logged a few hours or days after the pre certificate, the script only takes care of pre certificates to check them against the rate limits (v0.14)
+# 2018-Apr-16: Enhanced, added options [-p|--pre] and [-f|--final] to show only Pre certificates or to show only Final certificates. If no option, script will show both types of certificates. The rate limits using -f option could not be accurate due this type of cert takes too long to be logged. Rate limits using --pre option or none are counted using only the logged pre certs (v0.15)
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming soon)
@@ -116,13 +120,14 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 # Script version/name variables
-version='0.14'
+version='0.15'
 scriptname='lectl'
 lastmodification='2018-April-16'
 checknewversion=1
 forceupgrade=0
 maxnumberofcerts=100
-
+showprecerts=0
+showfinalcerts=0
 #Export env language variables to use C locale
 export LANG=C
 export LANGUAGE=C
@@ -274,6 +279,8 @@ _parseoptions() {
                  -l|--extraline) extraline='\n' ;;
                  -v | --version) exit ;;
                             -m*) _parsemorecerts "$1" ;;
+                   -f | --final) showfinalcerts='1' ;;
+                     -p | --pre) showprecerts='1' ;;
                        -* | --*) _echoerr "Unknown option $1"; _showusage; exit 1 ;;
                               *) domain="${1}" ;;
             esac
@@ -283,6 +290,24 @@ _parseoptions() {
         _echoerr "You MUST specify a domain name."
         printf '\n'
         exit 1
+    fi
+    if [ $showfinalcerts -eq 0 ] && [ $showprecerts -eq 0 ];then
+        showfinalcerts=1
+        showprecerts=1
+        typeofcerts='all'
+        rate_limit_type='final'
+    fi
+    if [ $showfinalcerts -eq 1 ] && [ $showprecerts -eq 1 ];then
+        typeofcerts='all'
+        rate_limit_type='final'
+    fi
+    if [ $showfinalcerts -eq 1 ] && [ $showprecerts -eq 0 ];then
+        typeofcerts='final'
+        rate_limit_type='pre'
+    fi
+    if [ $showfinalcerts -eq 0 ] && [ $showprecerts -eq 1 ];then
+        typeofcerts='pre'
+        rate_limit_type='final'
     fi
 
     if [ -z "${domain}" ];then
@@ -317,7 +342,7 @@ fi
 tempfile="${tempdir}/${domain}.$$.rl.tmp"
 
 # Let's go
-echo "$($_date +"%Y/%B/%d %H:%M:%S") - Checking certs for ${domain}"
+echo "$($_date +"%Y/%B/%d %H:%M:%S") - Checking ${typeofcerts} certs for ${domain}"
 echo " "
 
 #Get CA ids assigned to Let's Encrypt by crt.sh
@@ -371,9 +396,15 @@ for i in $(echo "${certsfound}");do
     if [ $? -eq 0 ];then
         certtype="Pre cert"
         numberprecerts=$((numberprecerts + 1))
+        if [ $showprecerts -eq 0 ];then
+            continue
+        fi
     else
         certtype="Final cert"
         numberfinalcerts=$((numberfinalcerts + 1))
+        if [ $showfinalcerts -eq 0 ];then
+            continue
+        fi
     fi
     validfrom=$($_sed 's/Not&nbsp;Before:/\r\nBxexfxoxrxex:/g' "${tempfile}.${id}" | $_awk -F'<BR>' '/^Bxexfxoxrxex:/ {print $1}' | $_sed 's/Bxexfxoxrxex:&nbsp;//g' | $_sed 's/&nbsp;/ /g')
     validfrom=$($_date ${utc} -d "${validfrom}" +'%Y-%b-%d %H:%M %Z')
@@ -402,9 +433,8 @@ echo -e "CRT ID;CERT TYPE;DOMAIN (CN);VALID FROM;VALID TO;EXPIRES IN${columnsans
 
 count=0
 finalresult=$(echo "${finalresult}" | $_sed 's/\\n\\n/TRISCADEICADELICA/g' | $_sed 's/\\n//g' | $_sed 's/TRISCADEICADELICA/\n/g' | $_tr ' ' '_')
-#finalresultforlimits=$(echo "${finalresult}" | grep -v 'Pre cert')
 
-for i in $(echo "${finalresult}" | grep -v 'Final_cert' | $_awk -F';' '{print $4}');do
+for i in $(echo "${finalresult}" | grep -iv "$rate_limit_type" | $_awk -F';' '{print $4}');do
     rightnow=$($_date ${utc} +'%s')
     i=$(echo "$i" | $_tr '_' ' ')
     converteddate=$(echo "$i" | $_awk -F'-| ' '{print $2,$3,$4,$5,$1}')
