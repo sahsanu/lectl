@@ -316,7 +316,7 @@ _parseoptions() {
         printf '\n'
         exit 1
     else
-        echo "${domain}" | $_grep -E '^[a-zA-Z0-9\.-]+\.[A-Za-z]{2,}$' &>/dev/null
+        echo "${domain}" | $_grep -E '^[a-zA-Z0-9\*\.-]+\.[A-Za-z]{2,}$' &>/dev/null
         _checkerror "Seems the specified domain ${domain} is not valid"
     fi
 }
