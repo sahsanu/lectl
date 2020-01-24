@@ -4,7 +4,7 @@
 # Script to check issued certificates by Let's Encrypt in
 # CTL (Certificate Transparency Log) using https://crt.sh
 #
-# Note: crt.sh is property of COMODO CA Limited 2015-2017
+# Note: crt.sh is property of Sectigo Limited 2015-2020
 
 # Author: sahsanu
 
@@ -98,9 +98,10 @@
 # 2018-Apr-16: Enhanced, added options [-p|--pre] and [-f|--final] to show only Pre certificates or to show only Final certificates. If no option, script will show both types of certificates. The rate limits using -f option could not be accurate due this type of cert takes too long to be logged. Rate limits using --pre option or none are counted using only the logged pre certs (v0.15)
 # 2018-Aug-05: Fix, Let's Encrypt has raised the rate limit to issue certificates for a domain in 7 days from 20 to 50,so I've updated it too (v0.16). 
 # 2018-Aug-23: Enhanced, grep pattern modified to allow searches using wildcard subdomains *.domain.tld. Keep in mind that using *.domain.tld searches literally for *.domain.tld and in this case * doesn't act as a wildcard. Thanks to @travisjeffery for requesting it and provide a pull a request (v0.17)
+# 2020-Jan-24: Fix, crt.sh has been moved to new servers and has changed how the html is presented so lectl was not able to get the right info ans was not working at all. This has been fixed in this release, we'll see how long lasts (v0.18)
 # TODO:
 # Clean up and comment the code
-# Create auto-update version (comming soon)
+# Create auto-update version (comming...some day...or not)
 
 #Variables for utilities
 _date=date
@@ -122,9 +123,9 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 # Script version/name variables
-version='0.17' 
+version='0.18' 
 scriptname='lectl'
-lastmodification='2018-August-23'
+lastmodification='2020-January-24'
 checknewversion=1
 forceupgrade=0
 maxnumberofcerts=100
@@ -371,10 +372,10 @@ done
 certsfound=$($_grep -A3 '?id=' "${tempfile}" | $_sed ':a;N;$!ba;s/>\n//g'| $_tr -d ' ')
 
 # Sorting output and removing duplicates so last cert is the first in the list
-certsfound=$(echo "$certsfound" | $_sed 's/^.*id=//' | $_sort -run | $_sed 's/^/<TD><Ahref="?id=/')
+certsfound=$(echo "$certsfound" | $_sed 's/^.*id=//' | $_sort -run)
 
 # Count certificates
-numberofcerts=$(echo "${certsfound}" | $_grep '>CN=' | $_wc -l)
+numberofcerts=$(echo "${certsfound}" | $_wc -l)
 numberofcerts=$(echo "${numberofcerts}" | $_tr -d ' ')
 
 if [ "${numberofcerts}" -le 0 ];then
@@ -388,12 +389,12 @@ numberfinalcerts=0
 numberprecerts=0
 
 for i in $(echo "${certsfound}");do
-    id=$(echo "$i" | $_awk -F'id=|>|"' '{print $4}')
-    domainid=$(echo "$i" | $_awk -F'CN=|>|<' '{print $17}')
+    id=$(echo "$i" | $_awk -F'"' '{print $1}')
 
     $_curl -sS "${crturldomainid}${id}" > "${tempfile}.${id}" 2>/dev/null
     _checkerror "Failed to retrieve ${crturldomainid}${id}"
 
+    domainid=$(sed 's/&nbsp;//g' "${tempfile}.${id}" | sed 's/<BR>/\n/g' | grep -i commonName | tail -n1 | awk -F'=' '{print $2}')
     certtype="$(grep -A1 '>Summary<' "${tempfile}.${id}" | grep 'Precertificate' 1>/dev/null 2>&1)"
     if [ $? -eq 0 ];then
         certtype="Pre cert"
