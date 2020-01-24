@@ -98,7 +98,7 @@
 # 2018-Apr-16: Enhanced, added options [-p|--pre] and [-f|--final] to show only Pre certificates or to show only Final certificates. If no option, script will show both types of certificates. The rate limits using -f option could not be accurate due this type of cert takes too long to be logged. Rate limits using --pre option or none are counted using only the logged pre certs (v0.15)
 # 2018-Aug-05: Fix, Let's Encrypt has raised the rate limit to issue certificates for a domain in 7 days from 20 to 50,so I've updated it too (v0.16). 
 # 2018-Aug-23: Enhanced, grep pattern modified to allow searches using wildcard subdomains *.domain.tld. Keep in mind that using *.domain.tld searches literally for *.domain.tld and in this case * doesn't act as a wildcard. Thanks to @travisjeffery for requesting it and provide a pull a request (v0.17)
-# 2020-Jan-24: Fix, crt.sh has been moved to new servers and has changed how the html is presented so lectl was not able to get the right info ans was not working at all. This has been fixed in this release, we'll see how long lasts (v0.18)
+# 2020-Jan-24: Fix, crt.sh has been moved to new servers and has changed how the html is presented so lectl was not able to get the right info and was not working at all. This has been fixed in this release, we'll see how long lasts (v0.18)
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming...some day...or not)
