@@ -99,6 +99,7 @@
 # 2018-Aug-05: Fix, Let's Encrypt has raised the rate limit to issue certificates for a domain in 7 days from 20 to 50,so I've updated it too (v0.16). 
 # 2018-Aug-23: Enhanced, grep pattern modified to allow searches using wildcard subdomains *.domain.tld. Keep in mind that using *.domain.tld searches literally for *.domain.tld and in this case * doesn't act as a wildcard. Thanks to @travisjeffery for requesting it and provide a pull a request (v0.17)
 # 2020-Jan-24: Fix, crt.sh has been moved to new servers and has changed how the html is presented so lectl was not able to get the right info and was not working at all. This has been fixed in this release, we'll see how long lasts (v0.18)
+# 2020-Jan-25: Fix, some commands were not used as variables (v0.19)
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming...some day...or not)
@@ -123,9 +124,9 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 # Script version/name variables
-version='0.18' 
+version='0.19' 
 scriptname='lectl'
-lastmodification='2020-January-24'
+lastmodification='2020-January-25'
 checknewversion=1
 forceupgrade=0
 maxnumberofcerts=100
@@ -394,8 +395,8 @@ for i in $(echo "${certsfound}");do
     $_curl -sS "${crturldomainid}${id}" > "${tempfile}.${id}" 2>/dev/null
     _checkerror "Failed to retrieve ${crturldomainid}${id}"
 
-    domainid=$(sed 's/&nbsp;//g' "${tempfile}.${id}" | sed 's/<BR>/\n/g' | grep -i commonName | tail -n1 | awk -F'=' '{print $2}')
-    certtype="$(grep -A1 '>Summary<' "${tempfile}.${id}" | grep 'Precertificate' 1>/dev/null 2>&1)"
+    domainid=$($_sed 's/&nbsp;//g' "${tempfile}.${id}" | $_sed 's/<BR>/\n/g' | $_grep -i commonName | $_tail -n1 | $_awk -F'=' '{print $2}')
+    certtype="$($_grep -A1 '>Summary<' "${tempfile}.${id}" | $_grep 'Precertificate' 1>/dev/null 2>&1)"
     if [ $? -eq 0 ];then
         certtype="Pre cert"
         numberprecerts=$((numberprecerts + 1))
@@ -437,7 +438,7 @@ echo -e "CRT ID;CERT TYPE;DOMAIN (CN);VALID FROM;VALID TO;EXPIRES IN${columnsans
 count=0
 finalresult=$(echo "${finalresult}" | $_sed 's/\\n\\n/TRISCADEICADELICA/g' | $_sed 's/\\n//g' | $_sed 's/TRISCADEICADELICA/\n/g' | $_tr ' ' '_')
 
-for i in $(echo "${finalresult}" | grep -iv "$rate_limit_type" | $_awk -F';' '{print $4}');do
+for i in $(echo "${finalresult}" | $_grep -iv "$rate_limit_type" | $_awk -F';' '{print $4}');do
     rightnow=$($_date ${utc} +'%s')
     i=$(echo "$i" | $_tr '_' ' ')
     converteddate=$(echo "$i" | $_awk -F'-| ' '{print $2,$3,$4,$5,$1}')
