@@ -100,6 +100,7 @@
 # 2018-Aug-23: Enhanced, grep pattern modified to allow searches using wildcard subdomains *.domain.tld. Keep in mind that using *.domain.tld searches literally for *.domain.tld and in this case * doesn't act as a wildcard. Thanks to @travisjeffery for requesting it and provide a pull a request (v0.17)
 # 2020-Jan-24: Fix, crt.sh has been moved to new servers and has changed how the html is presented so lectl was not able to get the right info and was not working at all. This has been fixed in this release, we'll see how long lasts (v0.18)
 # 2020-Jan-25: Fix, some commands were not used as variables (v0.19)
+# 2020-Feb-01: Fix, even if there are no certificates for a domain, lectl returns 1 certificate because the wc -l command also counts blank lines (v0.20)
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming...some day...or not)
@@ -124,9 +125,9 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 # Script version/name variables
-version='0.19' 
+version='0.20' 
 scriptname='lectl'
-lastmodification='2020-January-25'
+lastmodification='2020-February-01'
 checknewversion=1
 forceupgrade=0
 maxnumberofcerts=100
@@ -376,7 +377,7 @@ certsfound=$($_grep -A3 '?id=' "${tempfile}" | $_sed ':a;N;$!ba;s/>\n//g'| $_tr 
 certsfound=$(echo "$certsfound" | $_sed 's/^.*id=//' | $_sort -run)
 
 # Count certificates
-numberofcerts=$(echo "${certsfound}" | $_wc -l)
+numberofcerts=$(echo "${certsfound}" | grep -cv '^\s*$')
 numberofcerts=$(echo "${numberofcerts}" | $_tr -d ' ')
 
 if [ "${numberofcerts}" -le 0 ];then
