@@ -101,6 +101,7 @@
 # 2020-Jan-24: Fix, crt.sh has been moved to new servers and has changed how the html is presented so lectl was not able to get the right info and was not working at all. This has been fixed in this release, we'll see how long lasts (v0.18)
 # 2020-Jan-25: Fix, some commands were not used as variables (v0.19)
 # 2020-Feb-01: Fix, even if there are no certificates for a domain, lectl returns 1 certificate because the wc -l command also counts blank lines (v0.20)
+# 2020-Aug-09: Enhanced, added column KEY ALG to show the Key Algorithm used in certificate. Examples; RSA 2048bit, ECC 256bit, etc. (v0.21)
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming...some day...or not)
@@ -125,9 +126,9 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 # Script version/name variables
-version='0.20' 
+version='0.21' 
 scriptname='lectl'
-lastmodification='2020-February-01'
+lastmodification='2020-August-09'
 checknewversion=1
 forceupgrade=0
 maxnumberofcerts=100
@@ -366,8 +367,9 @@ for caid in ${caidsle};do
     $_curl -sSk "https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}${numberofcerts}" >> "${tempfile}" 2>/dev/null
     _checkerror "Failed to retrieve https://crt.sh/?Identity=${domain}&iCAID=${caid}${expired}${numberofcerts}"
 
-    $_curl -sSk "https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}${numberofcerts}" >> "${tempfile}" 2>/dev/null
-    _checkerror "Failed to retrieve https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}${numberofcerts}"
+# Wildcard % is used by default so no need to perform 2 queries
+#    $_curl -sSk "https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}${numberofcerts}" >> "${tempfile}" 2>/dev/null
+#    _checkerror "Failed to retrieve https://crt.sh/?Identity=%.${domain}&iCAID=${caid}${expired}${numberofcerts}"
 done
 
 # Put certificates found in variable
@@ -395,6 +397,10 @@ for i in $(echo "${certsfound}");do
 
     $_curl -sS "${crturldomainid}${id}" > "${tempfile}.${id}" 2>/dev/null
     _checkerror "Failed to retrieve ${crturldomainid}${id}"
+    
+    algorithm=$($_sed 's/&nbsp;//g' "${tempfile}.${id}" | $_sed 's/<BR>/\n/g' | $_grep PublicKeyAlgorithm | $_grep rsa &>/dev/null && echo RSA || echo ECC)
+    publickey=$($_sed 's/&nbsp;//g' "${tempfile}.${id}" | $_sed 's/<BR>/\n/g' | $_grep 'Public-Key:' | $_awk -F':' '{print $2}' | $_tr -d '()')
+    keyalgorithm="$algorithm $publickey"
 
     domainid=$($_sed 's/&nbsp;//g' "${tempfile}.${id}" | $_sed 's/<BR>/\n/g' | $_grep -i commonName | $_tail -n1 | $_awk -F'=' '{print $2}')
     certtype="$($_grep -A1 '>Summary<' "${tempfile}.${id}" | $_grep 'Precertificate' 1>/dev/null 2>&1)"
@@ -421,12 +427,12 @@ for i in $(echo "${certsfound}");do
     expiresin="${expiresin} day$(_plural ${expiresin})"
 
     if [ "${showsans}" -eq "1" ]; then
-        SANS=$($_sed 's/DNS:/\r\nDNS:/g' "${tempfile}.${id}" | $_awk -F'<BR>' '/^DNS:/ {print $1}' | $_sed 's/DNS:/ ; ; ; ; ; ;/g' | $_sed ':a;N;$!ba;s/\n/\\n/g' | $_sed 's/ ; ; ; ; ; ;//')
-        partialresult=$(printf "%s;%s;%s;%s;%s;%s;%s" "$id" "$certtype" "$domainid" "$validfrom" "$validto" "$expiresin" "$SANS")
-        result="${result}\n${partialresult}${extraline}; ; ; ; ; ;\n"
+        SANS=$($_sed 's/DNS:/\r\nDNS:/g' "${tempfile}.${id}" | $_awk -F'<BR>' '/^DNS:/ {print $1}' | $_sed 's/DNS:/ ; ; ; ; ; ; ;/g' | $_sed ':a;N;$!ba;s/\n/\\n/g' | $_sed 's/ ; ; ; ; ; ; ;//')
+        partialresult=$(printf "%s;%s;%s;%s;%s;%s;%s;%s" "$id" "$certtype" "$domainid" "$keyalgorithm" "$validfrom" "$validto" "$expiresin" "$SANS")
+        result="${result}\n${partialresult}${extraline}; ; ; ; ; ; ;\n"
     else
-        partialresult=$(printf "%s;%s;%s;%s;%s;%s" "$id" "$certtype" "$domainid" "$validfrom" "$validto" "$expiresin")
-        result="${result}\n${partialresult}${extraline}; ; ; ; ;\n"
+        partialresult=$(printf "%s;%s;%s;%s;%s;%s;%s" "$id" "$certtype" "$domainid" "$keyalgorithm" "$validfrom" "$validto" "$expiresin")
+        result="${result}\n${partialresult}${extraline}; ; ; ; ; ;\n"
     fi
 done
 
@@ -434,12 +440,12 @@ finalresult=$result
 
 echo "I have found ${numberofcerts} ${nonexpired}certificate$(_plural $numberofcerts) ($numberfinalcerts final cert$(_plural $numberfinalcerts) and $numberprecerts pre cert$(_plural $numberprecerts)) (max number of certs searched: ${maxnumberofcerts}) for domain ${domain} and its subdomains *.${domain}"
 printf '\n'
-echo -e "CRT ID;CERT TYPE;DOMAIN (CN);VALID FROM;VALID TO;EXPIRES IN${columnsans}\n${finalresult}" | $_column -t -s ';'
+echo -e "CRT ID;CERT TYPE;DOMAIN (CN);KEY ALG;VALID FROM;VALID TO;EXPIRES IN${columnsans}\n${finalresult}" | $_column -t -s ';'
 
 count=0
 finalresult=$(echo "${finalresult}" | $_sed 's/\\n\\n/TRISCADEICADELICA/g' | $_sed 's/\\n//g' | $_sed 's/TRISCADEICADELICA/\n/g' | $_tr ' ' '_')
 
-for i in $(echo "${finalresult}" | $_grep -iv "$rate_limit_type" | $_awk -F';' '{print $4}');do
+for i in $(echo "${finalresult}" | $_grep -iv "$rate_limit_type" | $_awk -F';' '{print $5}');do
     rightnow=$($_date ${utc} +'%s')
     i=$(echo "$i" | $_tr '_' ' ')
     converteddate=$(echo "$i" | $_awk -F'-| ' '{print $2,$3,$4,$5,$1}')
