@@ -373,7 +373,14 @@ for caid in ${caidsle};do
 done
 
 # Put certificates found in variable
-certsfound=$($_grep -A3 '?id=' "${tempfile}" | $_sed ':a;N;$!ba;s/>\n//g'| $_tr -d ' ')
+case "${OSTYPE,,}" in
+    freebsd*)
+        certsfound=$($_grep -A3 '?id=' "${tempfile}" | $_sed -e ':a' -e 'N' -e '$!ba' -e 's/>\n//g' | $_tr -d ' ')
+        ;;
+    *)
+        certsfound=$($_grep -A3 '?id=' "${tempfile}" | $_sed ':a;N;$!ba;s/>\n//g' | $_tr -d ' ')
+        ;;
+esac
 
 # Sorting output and removing duplicates so last cert is the first in the list
 certsfound=$(echo "$certsfound" | $_sed 's/^.*id=//' | $_sort -run)
@@ -418,16 +425,44 @@ for i in $(echo "${certsfound}");do
         fi
     fi
     validfrom=$($_sed 's/Not&nbsp;Before:/\r\nBxexfxoxrxex:/g' "${tempfile}.${id}" | $_awk -F'<BR>' '/^Bxexfxoxrxex:/ {print $1}' | $_sed 's/Bxexfxoxrxex:&nbsp;//g' | $_sed 's/&nbsp;/ /g')
-    validfrom=$($_date ${utc} -d "${validfrom}" +'%Y-%b-%d %H:%M %Z')
+        case "${OSTYPE,,}" in
+        freebsd*)
+            validfrom=$($_date ${utc} -j -f '%b %d %H:%M:%S %Y %Z' "${validfrom}" +'%Y-%b-%d %H:%M %Z')
+            ;;
+        *)
+            validfrom=$($_date ${utc} -d "${validfrom}" +'%Y-%b-%d %H:%M %Z')
+            ;;
+    esac
 
     validto=$($_sed 's/Not&nbsp;After&nbsp;:&nbsp;/\r\nAxfxtxexrx:/g' "${tempfile}.${id}" | $_awk -F'<BR>' '/^Axfxtxexrx:/ {print $1}' | $_sed 's/Axfxtxexrx://g' | $_sed 's/&nbsp;/ /g')
-    validto=$($_date ${utc} -d "${validto}" +'%Y-%b-%d %H:%M %Z')
+    case "${OSTYPE,,}" in
+        freebsd*)
+            validto=$($_date ${utc} -j -f '%b %d %H:%M:%S %Y %Z' "${validto}" +'%Y-%b-%d %H:%M %Z')
+            ;;
+        *)
+            validto=$($_date ${utc} -d "${validto}" +'%Y-%b-%d %H:%M %Z')
+            ;;
+    esac
 
-    expiresin=$(($(($($_date ${utc} -d "$(echo "${validto}" | $_awk -F'-| ' '{print $2,$3,$4,$5,$1}')" +"%s") - $($_date ${utc} +"%s"))) / 86400))
+    case "${OSTYPE,,}" in
+        freebsd*)
+            expiresin=$(($(($($_date ${utc} -j -f '%b %d %H:%M %Z %Y' "$(echo "${validto}" | $_awk -F'-| ' '{print $2,$3,$4,$5,$1}')" +"%s") - $($_date ${utc} +"%s"))) / 86400))
+            ;;
+        *)
+            expiresin=$(($(($($_date ${utc} -d "$(echo "${validto}" | $_awk -F'-| ' '{print $2,$3,$4,$5,$1}')" +"%s") - $($_date ${utc} +"%s"))) / 86400))
+            ;;
+    esac
     expiresin="${expiresin} day$(_plural ${expiresin})"
 
     if [ "${showsans}" -eq "1" ]; then
-        SANS=$($_sed 's/DNS:/\r\nDNS:/g' "${tempfile}.${id}" | $_awk -F'<BR>' '/^DNS:/ {print $1}' | $_sed 's/DNS:/ ; ; ; ; ; ; ;/g' | $_sed ':a;N;$!ba;s/\n/\\n/g' | $_sed 's/ ; ; ; ; ; ; ;//')
+         case "${OSTYPE,,}" in
+            freebsd*)
+                SANS=$($_sed 's/DNS:/\r\nDNS:/g' "${tempfile}.${id}" | $_awk -F'<BR>' '/^DNS:/ {print $1}' | $_sed 's/DNS:/ ; ; ; ; ; ; ;/g' | $_sed -e ':a' -e 'N' -e '$!ba' -e 's/>\n//g' | $_sed 's/ ; ; ; ; ; ; ;//')
+                ;;
+            *)
+                SANS=$($_sed 's/DNS:/\r\nDNS:/g' "${tempfile}.${id}" | $_awk -F'<BR>' '/^DNS:/ {print $1}' | $_sed 's/DNS:/ ; ; ; ; ; ; ;/g' | $_sed ':a;N;$!ba;s/>\n//g' | $_sed 's/ ; ; ; ; ; ; ;//')
+                ;;
+        esac
         partialresult=$(printf "%s;%s;%s;%s;%s;%s;%s;%s" "$id" "$certtype" "$domainid" "$keyalgorithm" "$validfrom" "$validto" "$expiresin" "$SANS")
         result="${result}\n${partialresult}${extraline}; ; ; ; ; ; ;\n"
     else
@@ -449,8 +484,14 @@ for i in $(echo "${finalresult}" | $_grep -iv "$rate_limit_type" | $_awk -F';' '
     rightnow=$($_date ${utc} +'%s')
     i=$(echo "$i" | $_tr '_' ' ')
     converteddate=$(echo "$i" | $_awk -F'-| ' '{print $2,$3,$4,$5,$1}')
-    certdate=$($_date $utc -d "$converteddate" +'%s')
-    daystoexpire=$(((${rightnow}-${certdate})/(60*60*24)))
+    certdate=$($_date $utc -d "$converteddate" +'%s')    case "${OSTYPE,,}" in
+        freebsd*)
+            certdate=$($_date $utc -j -f '%b %d %H:%M %Z %Y' "$converteddate" +'%s')
+            ;;
+        *)
+            certdate=$($_date $utc -d "$converteddate" +'%s')
+            ;;
+    esac
 
     if [ "${daystoexpire}" -lt "7" ] && [ "${count}" -lt "${ratelimit}" ];then
         count=$((count+1))
