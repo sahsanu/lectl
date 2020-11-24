@@ -492,7 +492,8 @@ for i in $(echo "${finalresult}" | $_grep -iv "$rate_limit_type" | $_awk -F';' '
             certdate=$($_date $utc -d "$converteddate" +'%s')
             ;;
     esac
-
+    daystoexpire=$(((${rightnow}-${certdate})/(60*60*24)))
+    
     if [ "${daystoexpire}" -lt "7" ] && [ "${count}" -lt "${ratelimit}" ];then
         count=$((count+1))
         dentrode="${dentrode}\n${converteddate}"
