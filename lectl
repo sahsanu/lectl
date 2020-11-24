@@ -484,7 +484,7 @@ for i in $(echo "${finalresult}" | $_grep -iv "$rate_limit_type" | $_awk -F';' '
     rightnow=$($_date ${utc} +'%s')
     i=$(echo "$i" | $_tr '_' ' ')
     converteddate=$(echo "$i" | $_awk -F'-| ' '{print $2,$3,$4,$5,$1}')
-    certdate=$($_date $utc -d "$converteddate" +'%s')    case "${OSTYPE,,}" in
+    case "${OSTYPE,,}" in
         freebsd*)
             certdate=$($_date $utc -j -f '%b %d %H:%M %Z %Y' "$converteddate" +'%s')
             ;;
