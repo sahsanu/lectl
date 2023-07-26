@@ -130,7 +130,7 @@ fi
 # Script version/name variables
 version='0.22.1'
 scriptname="${BASH_SOURCE[0]}"
-lastmodification='2023-July-24'
+lastmodification='2023-July-26'
 checknewversion=1
 forceupgrade=0
 maxnumberofcerts=100
