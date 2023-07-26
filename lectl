@@ -103,7 +103,7 @@
 # 2020-Feb-01: Fix, even if there are no certificates for a domain, lectl returns 1 certificate because the wc -l command also counts blank lines (v0.20)
 # 2020-Aug-09: Enhanced, added column KEY ALG to show the Key Algorithm used in certificate. Examples; RSA 2048bit, ECC 256bit, etc. (v0.21)
 # 2023-Jul-24: Update rate limited error message. Add more checks for required utility tools. (v0.22)
-# 2023-Jul-24: Fix quotes on scriptname variable. (v0.22.1)
+# 2023-Jul-26: Fix quotes on scriptname variable. (v0.22.1)
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming...some day...or not)
