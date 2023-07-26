@@ -128,7 +128,7 @@ fi
 
 # Script version/name variables
 version='0.22'
-scriptname='${BASH_SOURCE[0]}'
+scriptname="${BASH_SOURCE[0]}"
 lastmodification='2023-July-24'
 checknewversion=1
 forceupgrade=0
