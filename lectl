@@ -104,7 +104,7 @@
 # 2020-Aug-09: Enhanced, added column KEY ALG to show the Key Algorithm used in certificate. Examples; RSA 2048bit, ECC 256bit, etc. (v0.21)
 # 2023-Jul-24: Update rate limited error message. Add more checks for required utility tools. (v0.22)
 # 2023-Jul-26: Fix quotes on scriptname variable. (v0.22.1)
-# 2023-Jul-30: Add auto-update functionality (v0.23.0)
+# 2025-Feb-21: Add auto-update functionality (v0.23.0)
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming...some day...or not)
@@ -129,9 +129,9 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 # Script version/name variables
-version='0.21.0'
+version='0.23.0'
 scriptname="${BASH_SOURCE[0]}"
-lastmodification='2025-February-20'
+lastmodification='2025-February-21'
 checknewversion=1
 forceupgrade=1
 maxnumberofcerts=100
