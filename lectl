@@ -180,7 +180,7 @@ _checknewversion() {
         latest_source=$($_curl -sSk "https://raw.githubusercontent.com/sahsanu/lectl/master/lectl")
         if [ $? -eq 0 ]; then
             latest_version=$(echo "$latest_source" | grep -m1 "version='" | $_sed "s/version='\([^']*\)'.*/\1/")
-            if [ "$latest_version" != "$version" ]; then
+            if [ "$(printf "%s\n%s" "$latest_version" "$version" | sort -V | tail -n 1)" != "$version" ]; then
                 echo "New version available: $latest_version"
                 echo "Get it here: https://raw.githubusercontent.com/sahsanu/lectl/master/lectl"
                 read -n 1 -s -r -p "Do you want to update? (y/n)"
