@@ -104,6 +104,7 @@
 # 2020-Aug-09: Enhanced, added column KEY ALG to show the Key Algorithm used in certificate. Examples; RSA 2048bit, ECC 256bit, etc. (v0.21)
 # 2023-Jul-24: Update rate limited error message. Add more checks for required utility tools. (v0.22)
 # 2023-Jul-26: Fix quotes on scriptname variable. (v0.22.1)
+# 2025-Feb-21: Add auto-update functionality (v0.23.0)
 # TODO:
 # Clean up and comment the code
 # Create auto-update version (comming...some day...or not)
@@ -128,11 +129,11 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 # Script version/name variables
-version='0.22.1'
+version='0.23.0'
 scriptname="${BASH_SOURCE[0]}"
-lastmodification='2023-July-26'
+lastmodification='2025-February-21'
 checknewversion=1
-forceupgrade=0
+forceupgrade=1
 maxnumberofcerts=100
 showprecerts=0
 showfinalcerts=0
@@ -142,7 +143,21 @@ export LANGUAGE=C
 export LC_ALL=C
 
 _selfupgrade() {
-echo ""
+    if [ $forceupgrade -eq 1 ]; then
+        tmp_file=$(mktemp)
+        echo "Updating to v$latest_version..."
+        echo "$latest_source" > "$tmp_file"
+        chmod +x "$tmp_file"
+        
+        if mv -f "$tmp_file" "$0"; then
+            echo "Update successful. Reloading..."
+            exec "$0" "${original_args[@]}"  # Re-exec with original arguments
+            exit 0
+        else
+            _echoerr "Failed to install update"
+        fi
+        rm -f "$tmp_file"
+    fi
 }
 
 _checkcommands() {
@@ -159,12 +174,28 @@ _checkcommands "$_curl $_awk $_grep $_sed $_cat $_date $_sort $_column $_tail ${
 
 _checknewversion() {
     if [ $checknewversion = 1 ];then
-        lectllastsource=$($_curl -sSk "https://raw.githubusercontent.com/sahsanu/lectl/master/lectl")
+        echo "Checking for updates..."
+        
+        # Get latest version
+        latest_source=$($_curl -sSk "https://raw.githubusercontent.com/sahsanu/lectl/master/lectl")
+        if [ $? -eq 0 ]; then
+            latest_version=$(echo "$latest_source" | grep -m1 "version='" | $_sed "s/version='\([^']*\)'.*/\1/")
+            if [ "$(printf "%s\n%s" "$latest_version" "$version" | sort -V | tail -n 1)" != "$version" ]; then
+                echo "New version available: $latest_version"
+                echo "Get it here: https://raw.githubusercontent.com/sahsanu/lectl/master/lectl"
+                read -n 1 -s -r -p "Do you want to update? (y/n)"
+                echo ""
+                if [ "$REPLY" = "y" ]; then
+                    _selfupgrade
+                fi
+            fi
+        fi
     fi
 }
 
 _showversion() {
     echo "${scriptname} $version (${lastmodification})"
+    _checknewversion
     printf '\n'
 }
 
